@@ -8,6 +8,7 @@ import {
   ClubWithAvailability,
   GetAvailabilityQuery,
 } from '../../domain/commands/get-availaiblity.query';
+import { memoryCache } from '../../infrastructure/cache/memory-cache';
 
 const GetAvailabilitySchema = z.object({
   placeId: z.string(),
@@ -26,11 +27,26 @@ export class SearchController {
 
   @Get()
   @UsePipes(ZodValidationPipe)
-  searchAvailability(
+  async searchAvailability(
     @Query() query: GetAvailabilityDTO,
   ): Promise<ClubWithAvailability[]> {
-    return this.queryBus.execute(
+    const cacheKey = `${query.placeId}-${moment(query.date).format(
+      'YYYY-MM-DD',
+    )}`;
+
+    const cachedData = memoryCache.get(cacheKey);
+    if (cachedData?.length) {
+      console.log('Devolviendo datos desde la caché.');
+      return cachedData;
+    }
+
+    const result = await this.queryBus.execute(
       new GetAvailabilityQuery(query.placeId, query.date),
     );
+
+    memoryCache.set(cacheKey, result);
+    console.log('Datos guardados en caché.');
+
+    return result;
   }
 }
